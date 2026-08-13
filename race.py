@@ -10,7 +10,7 @@ import numpy as np
 import onnxruntime as ort
 
 
-FAIRFACE_LABELS = ("White", "Black", "Latino_Hispanic", "East Asian", "Southeast Asian", "Indian", "Middle Eastern")
+FAIRFACE_LABELS = ("European", "African", "Latino_Hispanic", "East Asian", "Southeast Asian", "Indian", "Middle Eastern")
 
 
 class FairFaceEstimator:

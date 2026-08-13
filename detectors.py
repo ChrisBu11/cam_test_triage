@@ -21,25 +21,46 @@ class DetectedFace:
 
 class FaceDetector:
     def __init__(self):
-        # FIX: Change 'det' to 'detection' so the validation assertion passes perfectly
         self.app = FaceAnalysis(
             name='buffalo_l', 
-            allowed_modules=['detection', 'genderage']
+            allowed_modules=['detection', 'genderage', 'recognition'],
         )
-        
-        # Initialize on CPU with a slightly smaller target size to recover massive FPS
-        self.app.prepare(ctx_id=0, det_size=(320, 320))
+        self.app.prepare(ctx_id=0, det_size=(640, 640))
 
-    def detect(self, frame: np.ndarray) -> list[DetectedFace]:
+    # FIX 1: Add run_recognition=False flag to conditionally toggle heavy embedding calculations
+    def detect(self, frame: np.ndarray, run_recognition: bool = False) -> list[DetectedFace]:
+        if not hasattr(self, 'app'):
+            self.__init__()
+            
+        # Dynamically toggle the recognition model on or off to optimize performance
+        if not run_recognition:
+            self.app.models['recognition'].max_num = 0  # Skips embedding code path
+        else:
+            self.app.models['recognition'].max_num = 1  # Computes embedding vector
+            
         height, width = frame.shape[:2]
         result: list[DetectedFace] = []
+        
         for face in self.app.get(frame):
             x1, y1, x2, y2 = [int(value) for value in face.bbox]
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(width, x2), min(height, y2)
             if x2 <= x1 or y2 <= y1:
                 continue
-            result.append(DetectedFace((x1, y1, x2, y2), float(face.det_score), frame[y1:y2, x1:x2].copy()))
+                
+            # FIX 2: Safely extract embeddings from InsightFace if they exist on this frame
+            normed_emb = getattr(face, 'normed_embedding', None)
+            raw_emb = getattr(face, 'embedding', None)
+            
+            # Create your custom object
+            detected_face_obj = DetectedFace((x1, y1, x2, y2), float(face.det_score), frame[y1:y2, x1:x2].copy())
+            
+            # FIX 3: Inject the embedding attribute directly onto your custom dataclass object
+            detected_face_obj.normed_embedding = normed_emb
+            detected_face_obj.embedding = raw_emb
+            
+            result.append(detected_face_obj)
+            
         return sorted(result, key=lambda item: item.confidence, reverse=True)
 
 
